@@ -1,22 +1,39 @@
 //import axios from 'axios'
-import * as puppeteer from 'puppeteer';
+import chromium from 'chrome-aws-lambda';
 
 import 'dotenv/config'
 const username: any = process.env.LUCIOS_LOGIN;
 const password: any = process.env.LUCIOS_PASS;
 const url: any =  process.env.LUCIOS_URL;
 
-(async (): Promise<void> => {
-  const browser = await puppeteer.launch({headless: false})
-  const page = await browser.newPage()
-  
-    await page.goto(url)
-    
+/**
+ * @event - faz as chamadas do lambda serem aceitas pelo puppeteer, dentro da aws
+ * criar o evento com os dados a serem passados pelo event.
+ */
+
+export async function handler(event, context, callback){
+
+    const browser = await chromium.puppeteer.launch({
+    args: chromium.args,
+    headless:chromium.headless,
+    executablePath: await chromium.executablePath,
+    ignoreHTTPSErrors: true,
+  })
+    const page = await browser.newPage();
+    await page.goto(event.url || url)
+
+/**
+ * Login do sistema, type {delay} serve para que o crawler não digite rápido e de timeout
+ */
     await page.type('#txtUsuario', username, {delay: 30})
     await page.type('#txtSenha', password, {delay: 30})
     await page.click('#btnLogin')
     await page.waitForNavigation()
 
+
+    /**
+     * Iniciando a compra
+     */
     await page.click('#ctl00_cphMaster_lbFecharAbertura')
 
     await page.waitForSelector("#my_menu > div:nth-child(2) > a:nth-child(2)")
@@ -38,7 +55,7 @@ const url: any =  process.env.LUCIOS_URL;
 
 
     /**
-     * Acesso a criação do pedido
+     *  Acesso a criação do pedido
      */
     await page.waitForSelector('#ctl00_cphMaster_btnIncluir', {timeout: 5000})
 
@@ -52,7 +69,7 @@ const url: any =  process.env.LUCIOS_URL;
      */
     
     await page.waitForSelector('#ctl00_cphMaster_txtOutrasRef', {visible: true, timeout: 3000 })
-    await page.type("#ctl00_cphMaster_txtOutrasRef", '509094', {delay: 300})
+    await page.type("#ctl00_cphMaster_txtOutrasRef", event.codigo, {delay: 300})
     
     await page.keyboard.press('Enter')
 
@@ -69,7 +86,7 @@ const url: any =  process.env.LUCIOS_URL;
      */
     await page.waitForSelector('#ctl00_cphMaster_txtItemQtde', {visible: true, timeout:3000})
     await page.focus('#ctl00_cphMaster_txtItemQtde')
-    await page.type('#ctl00_cphMaster_txtItemQtde', '012', {delay: 1000}) 
+    await page.type('#ctl00_cphMaster_txtItemQtde', event.quantidade, {delay: 1000}) 
 
     await page.click('#ctl00_cphMaster_txtItemValTotal')
 
@@ -88,11 +105,9 @@ const url: any =  process.env.LUCIOS_URL;
     await page.waitForSelector('#ctl00_cphMaster_btnSalvarPedido')
 
     await page.click('#ctl00_cphMaster_btnSalvarPedido')
-
-
-
   
-    await browser.disconnect()
-})()
+    await browser.close()
 
-//
+  return callback(null)
+}
+
